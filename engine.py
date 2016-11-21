@@ -949,7 +949,6 @@ class FlameEngine(sgtk.platform.Engine):
 
         # Maybe we are running a central install?
         path = os.path.normpath(os.path.join(self._install_root, "..", "..",) + wtc_path)
-        print path
         if os.path.exists(path):
             return path
 
