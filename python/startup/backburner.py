@@ -48,6 +48,7 @@ engine_instance = data["engine_instance"]
 app_instance = data["app_instance"]
 method_to_execute = data["method_to_execute"]
 method_args = data["args"]
+install_root = data["install_root"]
 
 # add sgtk to our python path
 sys.path.append(sgtk_core_location)
@@ -60,6 +61,7 @@ context = sgtk.context.deserialize(serialized_context)
 # that we are running a backburner job
 os.environ["TOOLKIT_FLAME_ENGINE_MODE"] = "BACKBURNER"
 engine = sgtk.platform.start_engine(engine_instance, context.sgtk, context)
+engine.set_install_root(install_root)
 del os.environ["TOOLKIT_FLAME_ENGINE_MODE"]
 engine.log_debug("Engine launched for backburner process.")
 

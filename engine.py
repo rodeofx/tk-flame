@@ -907,6 +907,7 @@ class FlameEngine(sgtk.platform.Engine):
         data["method_to_execute"] = method_name
         data["args"] = args
         data["sgtk_core_location"] = os.path.dirname(sgtk.__path__[0])
+        data["install_root"] = self._install_root
         
         fh = open(session_file, "wb")
         pickle.dump(data, fh)
@@ -942,11 +943,18 @@ class FlameEngine(sgtk.platform.Engine):
         else:    
             raise TankError("Your operating system does not support wiretap central!")
         
-        path = os.path.join(wtc_path, binary_name)
-        if not os.path.exists(path):
-            raise TankError("Cannot find binary '%s'!" % path)
-        
-        return path
+        wtc_path = os.path.join(wtc_path, binary_name)
+        if os.path.exists(wtc_path):
+            return wtc_path
+
+        # Maybe we are running a central install?
+        path = os.path.normpath(os.path.join(self._install_root, "..", "..",) + wtc_path)
+        print path
+        if os.path.exists(path):
+            return path
+
+        raise TankError("Cannot find binary '%s'!" % wtc_path)
+
 
     def get_ffmpeg_path(self):
         """
