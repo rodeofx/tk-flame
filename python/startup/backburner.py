@@ -49,6 +49,18 @@ app_instance = data["app_instance"]
 method_to_execute = data["method_to_execute"]
 method_args = data["args"]
 install_root = data["install_root"]
+flame_version = data["flame_version"]
+# FIXME :
+#         The problem :
+#         -At the time this is written, backburner is running with a root environment and
+#         with variable user id permissions which is a setting when creating the job. (cmdjob -userRights)
+#         This cause a problem when we call os.path.expanduser when building the logger path
+#         which depends on the environment. The task failed when trying to access root
+#         directories with another user permissions.
+#         The solution :
+#         -Set the HOME variable environment manualy.
+#         -Long term, backburner should set a proper environment and this could be removed.
+os.environ["HOME"] = user_home_path
 
 # add sgtk to our python path
 sys.path.append(sgtk_core_location)
@@ -62,6 +74,7 @@ context = sgtk.context.deserialize(serialized_context)
 os.environ["TOOLKIT_FLAME_ENGINE_MODE"] = "BACKBURNER"
 engine = sgtk.platform.start_engine(engine_instance, context.sgtk, context)
 engine.set_install_root(install_root)
+engine.set_version_info(flame_version["major"], flame_version["minor"], flame_version["full"])
 del os.environ["TOOLKIT_FLAME_ENGINE_MODE"]
 engine.log_debug("Engine launched for backburner process.")
 

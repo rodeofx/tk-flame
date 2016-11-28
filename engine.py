@@ -276,7 +276,8 @@ class FlameEngine(sgtk.platform.Engine):
         Called when the engine is being destroyed
         """
         self.log_debug("%s: Destroying..." % self)
-    
+        self.close_windows()
+
     @property
     def python_executable(self):
         """
@@ -302,10 +303,7 @@ class FlameEngine(sgtk.platform.Engine):
         if self._flame_version is None:
             raise TankError("Cannot determine preset version - No Flame DCC version specified!")
         
-        if self.is_version_less_than("2016"):
-            # for 2015 versions, preset version is v4
-            return "4"
-        elif self.is_version_less_than("2016.1"):
+        if self.is_version_less_than("2016.1"):
             # for version 2016 before ext 1, export preset is v5
             return "5" 
         elif self.is_version_less_than("2017"):
@@ -357,7 +355,7 @@ class FlameEngine(sgtk.platform.Engine):
         Example: 
         
         - Flame: '2016.1.0.278', version str: '2016.1' => False
-        - Flame: '2015.2.p453',  version str: '2016.1' => True
+        - Flame: '2016',  version str: '2016.1' => True
         
         :param version_str: Version to run comparison against
         """
@@ -372,7 +370,7 @@ class FlameEngine(sgtk.platform.Engine):
         """
         Returns Flame's major version number as a string.
         
-        :returns: String (e.g. '2015')
+        :returns: String (e.g. '2016')
         """
         if self._flame_version is None:
             raise TankError("No Flame DCC version specified!")
@@ -462,6 +460,25 @@ class FlameEngine(sgtk.platform.Engine):
         
         # lastly, return the instantiated widget
         return widget
+
+    def close_windows(self):
+        """
+        Closes the various windows (dialogs, panels, etc.) opened by the engine.
+        """
+
+        # Make a copy of the list of Tank dialogs that have been created by the engine and
+        # are still opened since the original list will be updated when each dialog is closed.
+        opened_dialog_list = self.created_qt_dialogs[:]
+
+        # Loop through the list of opened Tank dialogs.
+        for dialog in opened_dialog_list:
+            dialog_window_title = dialog.windowTitle()
+            try:
+                # Close the dialog and let its close callback remove it from the original dialog list.
+                self.log_debug("Closing dialog %s." % dialog_window_title)
+                dialog.close()
+            except Exception, exception:
+                self.log_error("Cannot close dialog %s: %s" % (dialog_window_title, exception))
 
     def log_debug(self, msg):
         """
@@ -908,7 +925,9 @@ class FlameEngine(sgtk.platform.Engine):
         data["args"] = args
         data["sgtk_core_location"] = os.path.dirname(sgtk.__path__[0])
         data["install_root"] = self._install_root
-        
+        data["flame_version"] = self._flame_version
+        data["user_home_path"] = os.path.expanduser( "~" )
+
         fh = open(session_file, "wb")
         pickle.dump(data, fh)
         fh.close()
@@ -937,9 +956,15 @@ class FlameEngine(sgtk.platform.Engine):
         :returns: Absolute path as a string  
         """
         if sys.platform == "darwin":
-            wtc_path = "/Library/WebServer/CGI-Executables/WiretapCentral"
+            if int(self.flame_major_version) <= 2017:
+                wtc_path = "/Library/WebServer/CGI-Executables/WiretapCentral"
+            else:
+                wtc_path = "/Library/WebServer/Documents/WiretapCentral/cgi-bin"
         elif sys.platform == "linux2":
-            wtc_path = "/var/www/cgi-bin/WiretapCentral"
+            if int(self.flame_major_version) <= 2017:
+                wtc_path = "/var/www/cgi-bin/WiretapCentral"
+            else:
+                wtc_path = "/var/www/html/WiretapCentral/cgi-bin"
         else:    
             raise TankError("Your operating system does not support wiretap central!")
         
