@@ -50,6 +50,11 @@ method_to_execute = data["method_to_execute"]
 method_args = data["args"]
 install_root = data["install_root"]
 flame_version = data["flame_version"]
+user_home_path = data["user_home_path"]
+shotgun_home = data["shotgun_home"]
+if shotgun_home:
+    os.environ["SHOTGUN_HOME"] = shotgun_home
+
 # FIXME :
 #         The problem :
 #         -At the time this is written, backburner is running with a root environment and
@@ -65,6 +70,9 @@ os.environ["HOME"] = user_home_path
 # add sgtk to our python path
 sys.path.append(sgtk_core_location)
 import sgtk
+
+# Create a custom log file just for backburner jobs.
+sgtk.LogManager().initialize_base_file_handler("tk-flame-backburner")
 
 # first, attempt to launch the engine
 context = sgtk.context.deserialize(serialized_context)
