@@ -28,7 +28,6 @@ import datetime
 from sgtk import TankError
 from distutils.version import LooseVersion
 
-LOG_CHANNEL = "sgtk.tk-flame"
 
 class FlameEngine(sgtk.platform.Engine):
     """
@@ -47,14 +46,7 @@ class FlameEngine(sgtk.platform.Engine):
     # the name of the folder in the engine which we should register
     # with Flame to trigger various hooks to run.
     FLAME_HOOKS_FOLDER = "flame_hooks"
-    
-    # our default log file to write to
-    SGTK_LOG_FILE = "tk-flame.log"
-    
-    # a 'plan B' safe log file that we call fall back on in case
-    # the default log file cannot be accessed
-    SGTK_LOG_FILE_SAFE = "/tmp/tk-flame.log"
-    
+
     # define constants for the various modes the engine can execute in
     (ENGINE_MODE_DCC, ENGINE_MODE_PRELAUNCH, ENGINE_MODE_BACKBURNER) = range(3)
     
@@ -69,7 +61,6 @@ class FlameEngine(sgtk.platform.Engine):
         # implements are registered.
         flame_hooks_folder = os.path.join(self.disk_location, self.FLAME_HOOKS_FOLDER)
         sgtk.util.append_path_to_env_var("DL_PYTHON_HOOK_PATH", flame_hooks_folder)
-        self.log_debug("Added to hook path: %s" % flame_hooks_folder)
 
         # the path to the associated python executable
         self._python_executable_path = None 
@@ -110,7 +101,7 @@ class FlameEngine(sgtk.platform.Engine):
         sys.excepthook = sgtk_exception_trap
         
         # now start the proper init
-        self.log_debug("%s: Initializing..." % self)        
+        self.logger.debug("%s: Initializing..." % self)        
         
         # maintain a list of export options
         self._registered_export_instances = {}
@@ -125,47 +116,6 @@ class FlameEngine(sgtk.platform.Engine):
             utf8 = QtCore.QTextCodec.codecForName("utf-8")
             QtCore.QTextCodec.setCodecForCStrings(utf8)        
 
-    def _initialize_logging(self, install_root):
-        """
-        Set up logging for the engine
-
-        :param install_root: path to flame install root
-        """
-        # standard flame log file
-        std_log_file = os.path.join(install_root, "log", self.SGTK_LOG_FILE)
-
-        # test if we can write to the default log file
-        try:
-            fh = open(std_log_file, "at")
-            fh.close()
-            log_file = std_log_file
-            using_safe_log_file = False
-        except IOError:
-            # cannot operate on file (usually related to permissions)
-            # write to tmp instead.
-            log_file = self.SGTK_LOG_FILE_SAFE
-            using_safe_log_file = True
-
-        # Set up a rotating logger with 4MiB max file size
-        rotating = logging.handlers.RotatingFileHandler(log_file, maxBytes=4*1024*1024, backupCount=10)
-        rotating.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] PID %(process)d: %(message)s"))
-        # create a global logging object
-        logger = logging.getLogger(LOG_CHANNEL)
-        logger.propagate = False
-        # clear any existing handlers
-        logger.handlers = []
-        logger.addHandler(rotating)
-        if self.get_setting("debug_logging"):
-            logger.setLevel(logging.DEBUG)
-        else:
-            logger.setLevel(logging.INFO)
-
-        # now that we have a logger, we can warn about a non-std log file :)
-        if using_safe_log_file:
-            logger.error("Cannot write to standard log file location %s! Please check "
-                         "the filesystem permissions. As a fallback, logs will be "
-                         "written to %s instead." % (std_log_file, log_file))
-        
     def set_python_executable(self, python_path):
         """
         Specifies the path to the associated python process.
@@ -174,7 +124,7 @@ class FlameEngine(sgtk.platform.Engine):
         :param python_path: path to python, as string 
         """
         self._python_executable_path = python_path
-        self.log_debug("This engine is running python interpreter '%s'" % self._python_executable_path )
+        self.logger.debug("This engine is running python interpreter '%s'" % self._python_executable_path )
         
     def set_version_info(self, major_version_str, minor_version_str, full_version_str):
         """
@@ -186,7 +136,7 @@ class FlameEngine(sgtk.platform.Engine):
         :param full_version_str: Full version number as string
         """
         self._flame_version = {"full": full_version_str, "major": major_version_str, "minor": minor_version_str}
-        self.log_debug("This engine is running with Flame version '%s'" % self._flame_version )
+        self.logger.debug("This engine is running with Flame version '%s'" % self._flame_version )
 
     def set_install_root(self, install_root):
         """
@@ -200,9 +150,8 @@ class FlameEngine(sgtk.platform.Engine):
             # cannot call this multiple times
             raise TankError("Cannot call set_install_root multiple times!")
 
-        self.log_debug("Flame install root is '%s'" % self._install_root)
+        self.logger.debug("Flame install root is '%s'" % self._install_root)
         self._install_root = install_root
-        self._initialize_logging(install_root)
 
     def _get_commands_matching_setting(self, setting):
         """
@@ -251,7 +200,7 @@ class FlameEngine(sgtk.platform.Engine):
         """
         Do any initialization after apps have been loaded
         """
-        self.log_debug("%s: Running post app init..." % self)
+        self.logger.debug("%s: Running post app init..." % self)
 
         try:
             full_version_str = os.environ.get("TOOLKIT_FLAME_VERSION")
@@ -267,7 +216,7 @@ class FlameEngine(sgtk.platform.Engine):
         # run any commands registered via run_at_startup
         commands_to_start = self._get_commands_matching_setting("run_at_startup")
         for (instance_name, command_name, callback) in commands_to_start:
-            self.log_debug("Running at startup: (%s, %s)" % (instance_name, command_name))
+            self.logger.debug("Running at startup: (%s, %s)" % (instance_name, command_name))
             callback()
 
 
@@ -275,7 +224,7 @@ class FlameEngine(sgtk.platform.Engine):
         """
         Called when the engine is being destroyed
         """
-        self.log_debug("%s: Destroying..." % self)
+        self.logger.debug("%s: Destroying..." % self)
         self.close_windows()
 
     @property
@@ -439,7 +388,7 @@ class FlameEngine(sgtk.platform.Engine):
         top of the Flame interface
         """
         if not self.has_ui:
-            self.log_error("Sorry, this environment does not support UI display! Cannot show "
+            self.logger.error("Sorry, this environment does not support UI display! Cannot show "
                            "the requested panel '%s'." % title)
             return None
         
@@ -475,43 +424,10 @@ class FlameEngine(sgtk.platform.Engine):
             dialog_window_title = dialog.windowTitle()
             try:
                 # Close the dialog and let its close callback remove it from the original dialog list.
-                self.log_debug("Closing dialog %s." % dialog_window_title)
+                self.logger.debug("Closing dialog %s." % dialog_window_title)
                 dialog.close()
             except Exception, exception:
-                self.log_error("Cannot close dialog %s: %s" % (dialog_window_title, exception))
-
-    def log_debug(self, msg):
-        """
-        Log a debug message
-        
-        :param msg: The debug message to log
-        """
-        logging.getLogger(LOG_CHANNEL).debug(msg)        
- 
-    def log_info(self, msg):
-        """
-        Log some info
-        
-        :param msg: The info message to log
-        """
-        logging.getLogger(LOG_CHANNEL).info(msg)
- 
-    def log_warning(self, msg):
-        """
-        Log a warning
-        
-        :param msg: The warning message to log
-        """
-        logging.getLogger(LOG_CHANNEL).warning(msg)        
- 
-    def log_error(self, msg):
-        """
-        Log an error
-        
-        :param msg: The error message to log
-        """        
-        logging.getLogger(LOG_CHANNEL).error(msg)
-
+                self.logger.error("Cannot close dialog %s: %s" % (dialog_window_title, exception))
 
     ################################################################################################################
     # Engine Bootstrap
@@ -570,13 +486,13 @@ class FlameEngine(sgtk.platform.Engine):
                 # we have a batch file published for this context!
                 batch_file_path = sg_data["path"]["local_path"]
                 if os.path.exists(batch_file_path):
-                    self.log_debug("Setting auto startup file '%s'" % batch_file_path)
+                    self.logger.debug("Setting auto startup file '%s'" % batch_file_path)
                     os.environ["DL_BATCH_START_WITH_SETUP"] = batch_file_path
         
         # add Flame hooks for this engine
         flame_hooks_folder = os.path.join(self.disk_location, self.FLAME_HOOKS_FOLDER)
         sgtk.util.append_path_to_env_var("DL_PYTHON_HOOK_PATH", flame_hooks_folder)
-        self.log_debug("Added to hook path: %s" % flame_hooks_folder)
+        self.logger.debug("Added to hook path: %s" % flame_hooks_folder)
                 
         # now that we have a wiretap library, call out and initialize the project 
         # automatically
@@ -601,7 +517,7 @@ class FlameEngine(sgtk.platform.Engine):
             # in both these states, no special QT init is necessary. 
             # Defer to default implementation which looks for pyside and 
             # gracefully fails in case that isn't found.
-            self.log_debug("Initializing default PySide for in-DCC / backburner use")
+            self.logger.debug("Initializing default PySide for in-DCC / backburner use")
             return super(FlameEngine, self)._define_qt_base()
         
         else:
@@ -632,7 +548,7 @@ class FlameEngine(sgtk.platform.Engine):
             base["qt_core"] = QtCore
             base["qt_gui"] = QtGui
             base["dialog_base"] = ProxyDialogPySide
-            self.log_debug("Successfully initialized PySide '%s' located in %s." 
+            self.logger.debug("Successfully initialized PySide '%s' located in %s." 
                            % (PySide.__version__, PySide.__file__))
             
             return base
@@ -686,7 +602,7 @@ class FlameEngine(sgtk.platform.Engine):
             raise TankError("There is already a menu export preset named '%s'! "
                             "Please ensure your preset names are unique" % menu_caption)
     
-        self.log_debug("Registered export preset '%s' with engine." % menu_caption)
+        self.logger.debug("Registered export preset '%s' with engine." % menu_caption)
         self._registered_export_instances[menu_caption] = callbacks
     
     
@@ -733,11 +649,11 @@ class FlameEngine(sgtk.platform.Engine):
         :param session_id: Unique session identifier
         :param info: Metadata dictionary from Flame
         """
-        self.log_debug("Flame engine export callback dispatch for %s" % callback_name)
-        self.log_debug("Info parameters passed from Flame: %s" % pprint.pformat(info))
+        self.logger.debug("Flame engine export callback dispatch for %s" % callback_name)
+        self.logger.debug("Info parameters passed from Flame: %s" % pprint.pformat(info))
         
         if session_id not in self._export_sessions:
-            self.log_debug("Ignoring request for unknown session %s..." % session_id)
+            self.logger.debug("Ignoring request for unknown session %s..." % session_id)
             return
         
         # get the preset
@@ -747,7 +663,7 @@ class FlameEngine(sgtk.platform.Engine):
         # call the callback in the preset
         if callback_name in tk_callbacks:
             # the app has registered interest in this!
-            self.log_debug("Executing callback %s" % tk_callbacks[callback_name])
+            self.logger.debug("Executing callback %s" % tk_callbacks[callback_name])
             tk_callbacks[callback_name](session_id, info)
         
     
@@ -788,7 +704,7 @@ class FlameEngine(sgtk.platform.Engine):
         
         :param callbacks: Dictionary of callbacks, see above for details.
         """
-        self.log_debug("Registered batch callbacks with engine: %s" % callbacks)
+        self.logger.debug("Registered batch callbacks with engine: %s" % callbacks)
         self._registered_batch_instances.append(callbacks)
         
     def trigger_batch_callback(self, callback_name, info):
@@ -803,15 +719,15 @@ class FlameEngine(sgtk.platform.Engine):
         :param session_id: Unique session identifier
         :param info: Metadata dictionary from Flame
         """
-        self.log_debug("Flame engine batch callback dispatch for %s" % callback_name)
-        self.log_debug("Info parameters passed from Flame: %s" % pprint.pformat(info))
+        self.logger.debug("Flame engine batch callback dispatch for %s" % callback_name)
+        self.logger.debug("Info parameters passed from Flame: %s" % pprint.pformat(info))
 
         # dispatch to all callbacks
         for registered_batch_instance in self._registered_batch_instances:
-            self.log_debug("Checking %s" % registered_batch_instance)
+            self.logger.debug("Checking %s" % registered_batch_instance)
             if callback_name in registered_batch_instance:
                 # the app has registered interest in this!
-                self.log_debug("Executing callback %s" % registered_batch_instance[callback_name])
+                self.logger.debug("Executing callback %s" % registered_batch_instance[callback_name])
                 registered_batch_instance[callback_name](info)
         
 
@@ -924,8 +840,10 @@ class FlameEngine(sgtk.platform.Engine):
         data["method_to_execute"] = method_name
         data["args"] = args
         data["sgtk_core_location"] = os.path.dirname(sgtk.__path__[0])
+        data["install_root"] = self._install_root
         data["flame_version"] = self._flame_version
         data["user_home_path"] = os.path.expanduser( "~" )
+        data["shotgun_home"] = os.environ.get("SHOTGUN_HOME", None)
 
         fh = open(session_file, "wb")
         pickle.dump(data, fh)
@@ -933,10 +851,10 @@ class FlameEngine(sgtk.platform.Engine):
         
         full_cmd = "%s %s %s %s" % (backburner_job_cmd, " ".join(backburner_args), farm_cmd, session_file)
 
-        self.log_debug("Starting backburner job '%s'" % job_name)
-        self.log_debug("Command line: %s" % full_cmd)
-        self.log_debug("App: %s" % app)
-        self.log_debug("Method: %s with args %s" % (method_name, args))
+        self.logger.debug("Starting backburner job '%s'" % job_name)
+        self.logger.debug("Command line: %s" % full_cmd)
+        self.logger.debug("App: %s" % app)
+        self.logger.debug("Method: %s with args %s" % (method_name, args))
 
         # kick it off        
         if os.system(full_cmd) != 0:
@@ -967,11 +885,17 @@ class FlameEngine(sgtk.platform.Engine):
         else:    
             raise TankError("Your operating system does not support wiretap central!")
         
-        path = os.path.join(wtc_path, binary_name)
-        if not os.path.exists(path):
-            raise TankError("Cannot find binary '%s'!" % path)
-        
-        return path
+        wtc_path = os.path.join(wtc_path, binary_name)
+        if os.path.exists(wtc_path):
+            return wtc_path
+
+        # Maybe we are running a central install?
+        path = os.path.normpath(os.path.join(self._install_root, "..", "..",) + wtc_path)
+        if os.path.exists(path):
+            return path
+
+        raise TankError("Cannot find binary '%s'!" % wtc_path)
+
 
     def get_ffmpeg_path(self):
         """

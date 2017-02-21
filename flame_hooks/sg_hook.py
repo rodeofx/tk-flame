@@ -8,6 +8,7 @@
 # agreement to the Shotgun Pipeline Toolkit Source Code License. All rights
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
+import traceback
 import os
 
 def getCustomUIActions():
@@ -87,12 +88,35 @@ def getMainMenuCustomUIActions( ):
     # generate flame data structure
     actions = [{"name": x, "caption": x} for x in commands]
 
+    rodeo_hooks = ()
+    try:
+        # RDO: Launcher should have added the Flame workgroup to the PYTHONPATH, so we should
+        # be able to get all custom UI actions from the workgroup.
+        import rodeo_hook
+        rodeo_hooks = rodeo_hook.getCustomUIActions()
+    except Exception as e:
+
+        from PySide import QtGui
+        messageBox = QtGui.QMessageBox(
+            QtGui.QMessageBox.Warning,
+            "Workgroup initialization error",
+            "There was a problem importing Flame hooks from the workgroup."
+        )
+        messageBox.setDetailedText(
+            "PYTHONPATH: {0}\n"
+            "Exception: {1}".format(
+                os.environ.get("PYTHONPATH", ""),
+                traceback.format_exc(e)
+            )
+        )
+        messageBox.exec_()
+
     return (
         {
             "name": "Shotgun",
             "actions": tuple(actions)
         },
-    )
+    ) + rodeo_hooks
 
 
 def customUIAction(info, userData):
@@ -116,7 +140,14 @@ def customUIAction(info, userData):
 
     # get the comand name
     command_name = info["name"]
-    # find it in toolkit
-    command_obj = engine.commands[command_name]
-    # execute the callback
-    command_obj["callback"]()
+
+    if command_name in engine.commands:
+        # find it in toolkit
+        command_obj = engine.commands[command_name]
+        # execute the callback
+        command_obj["callback"]()
+    else:
+        # RDO: Launcher should have added the Flame workgroup to the PYTHONPATH, so we should
+        # be able to run the custom actions from the workgroup.
+        import rodeo_hook
+        rodeo_hook.customUIAction(userData)

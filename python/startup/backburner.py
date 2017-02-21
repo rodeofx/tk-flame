@@ -48,8 +48,12 @@ engine_instance = data["engine_instance"]
 app_instance = data["app_instance"]
 method_to_execute = data["method_to_execute"]
 method_args = data["args"]
+install_root = data["install_root"]
 flame_version = data["flame_version"]
 user_home_path = data["user_home_path"]
+shotgun_home = data["shotgun_home"]
+if shotgun_home:
+    os.environ["SHOTGUN_HOME"] = shotgun_home
 
 # FIXME :
 #         The problem :
@@ -67,6 +71,9 @@ os.environ["HOME"] = user_home_path
 sys.path.append(sgtk_core_location)
 import sgtk
 
+# Create a custom log file just for backburner jobs.
+sgtk.LogManager().initialize_base_file_handler("tk-flame-backburner")
+
 # first, attempt to launch the engine
 context = sgtk.context.deserialize(serialized_context)
 
@@ -74,6 +81,7 @@ context = sgtk.context.deserialize(serialized_context)
 # that we are running a backburner job
 os.environ["TOOLKIT_FLAME_ENGINE_MODE"] = "BACKBURNER"
 engine = sgtk.platform.start_engine(engine_instance, context.sgtk, context)
+engine.set_install_root(install_root)
 engine.set_version_info(flame_version["major"], flame_version["minor"], flame_version["full"])
 del os.environ["TOOLKIT_FLAME_ENGINE_MODE"]
 engine.log_debug("Engine launched for backburner process.")
