@@ -150,4 +150,4 @@ def customUIAction(info, userData):
         # RDO: Launcher should have added the Flame workgroup to the PYTHONPATH, so we should
         # be able to run the custom actions from the workgroup.
         import rodeo_hook
-        rodeo_hook.customUIAction(userData)
+        rodeo_hook.customUIAction(info, userData)
